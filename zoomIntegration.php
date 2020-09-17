@@ -101,12 +101,15 @@ class zoomIntegration extends frontControllerApplication
 		# Obtain and cache the recordings
 		$recordings = $this->cacheRecordings ($recordings);
 		
+		# Resize the recordings
+		$recordings = $this->resizeRecordings ($recordings);
+		
 		# Render as table
 		$html .= "\n<h3>Recordings</h3>";
 		$html .= "\n<p>The following recordings are available.</p>";
 		$html .= "\n<p>Please note that Zoom limits the listing to the last month only.</p>";
 		$headings = array ('error' => 'Error?');
-		$html .= application::htmlTable ($recordings, $headings, 'lines', $keyAsFirstColumn = false, $uppercaseHeadings = true, $allowHtml = array ('link', 'error'));
+		$html .= application::htmlTable ($recordings, $headings, 'lines', $keyAsFirstColumn = false, $uppercaseHeadings = true, $allowHtml = array ('linkOriginal', 'errorOriginal', 'linkResized', 'errorResized'));
 		
 		
 		# Return the HTML
@@ -158,6 +161,7 @@ class zoomIntegration extends frontControllerApplication
 				'date'		=> date ('Y-m-d', strtotime ($meeting['start_time'])),
 				'duration'	=> $meeting['duration'] . ' minutes',
 				'size'		=> (int) round (($meeting['recording_files'][$fileIndex]['file_size'] / (1024*1024))) . 'MB',
+				'sizeBytes'	=> $meeting['recording_files'][$fileIndex]['file_size'],
 				'videoUrl'	=> $meeting['recording_files'][$fileIndex]['download_url'] . '?access_token=' . $this->jwt,
 			);
 		}
@@ -179,25 +183,64 @@ class zoomIntegration extends frontControllerApplication
 		foreach ($recordings as $id => $recording) {
 			
 			# Determine the file location
-			$filename = $id . '.mp4';
+			$filename = $id . '-original.mp4';
 			$file = $this->dataDirectory . $filename;
 			
 			# If the file does not exist, download it in the background
 			$error = '-';
 			if (!file_exists ($file)) {
 				$command = "wget -q -O {$file} '{$recording['videoUrl']}' 2>&1 &";	// Backgrounded, using & ; this will start creating the file straight away so file_exists will not trigger again
-				$output = shell_exec ($command);
-				if ($output) {
-					$error = '<span class="warning">' . trim ($output) . '</span>';		// Change file to error
+				exec ($command, $output, $returnValue);
+				$success = (!$returnValue);
+				if (!$success) {
+					$error = '<span class="warning">' . trim ($output) . '</span>';
 				}
 			}
 			unset ($recordings[$id]['videoUrl']);
 			
 			# Register the result
-			$recordings[$id]['filename'] = $filename;
-			$recordings[$id]['link'] = "<a href=\"{$this->baseUrl}/data/{$filename}\">{$filename}</a>";
-			//$recordings[$id]['file'] = $file;
-			$recordings[$id]['error'] = $error;
+			$recordings[$id]['filenameOriginal'] = $filename;
+			$recordings[$id]['fileOriginal'] = $file;
+			$recordings[$id]['linkOriginal'] = "<a href=\"{$this->baseUrl}/data/{$filename}\">{$filename}</a>";
+			$recordings[$id]['errorOriginal'] = $error;
+		}
+		
+		# Return the recordings list
+		return $recordings;
+	}
+	
+	
+	# Function to resize recordings
+	private function resizeRecordings ($recordings)
+	{
+		# Loop through each recording
+		foreach ($recordings as $id => $recording) {
+			
+			# Determine the intended filename after resizing
+			$filename = $id . '.mp4';
+			$file = $this->dataDirectory . $filename;
+			
+			# Ensure the file is fully-downloaded
+			if (filesize ($recordings[$id]['fileOriginal']) != $recording['sizeBytes']) {
+				unset ($recordings[$id]['sizeBytes']);
+				continue;
+			}
+			unset ($recordings[$id]['sizeBytes']);
+			
+			# Transcode the file
+			# Scale :-2 handles non-divisibility by 2; see: https://stackoverflow.com/a/29582287/180733
+			$command = "ffmpeg -i '{$recording['fileOriginal']}' -vcodec libx264 -crf 24 -vf scale='800:-2' '{$file}' 2>&1 &";	// Backgrounded, using &
+			exec ($command, $output, $returnValue);
+			$success = (!$returnValue);
+			if (!$success) {
+				$error = '<span class="warning">' . trim ($output) . '</span>';
+			}
+			unset ($recordings[$id]['fileOriginal']);
+			
+			# Register the result
+			$recordings[$id]['filenameResized'] = $filename;
+			$recordings[$id]['linkResized'] = "<a href=\"{$this->baseUrl}/data/{$filename}\">{$filename}</a>";
+			$recordings[$id]['errorResized'] = $error;
 		}
 		
 		# Return the recordings list

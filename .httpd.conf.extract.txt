@@ -9,9 +9,9 @@
 <Macro MacroZoomIntegration $baseUrl $repoPath $includePath>
 	
 	# Include path
-	<LocationMatch $baseUrl>
+	<Location $baseUrl>
 		php_value include_path "$includePath"
-	</LocationMatch>
+	</Location>
 	
 	# Front controller application support
 	Use MacroFrontControllerApplication "$baseUrl/" "Zoom integration"
@@ -20,7 +20,7 @@
 	Alias $baseUrl/data/ $repoPath/data/
 	
 	# Downloading
-	<LocationMatch $baseUrl>
+	<Location $baseUrl>
 		php_value allow_url_fopen On
 	</Location>
 	
