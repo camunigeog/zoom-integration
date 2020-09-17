@@ -72,8 +72,12 @@ class zoomIntegration extends frontControllerApplication
 	public function home ()
 	{
 		# Get users
-		$users = $this->getUsers ();
-		var_dump ($users);
+		//$users = $this->getUsers ();
+		//var_dump ($users);
+		
+		# Show recordings
+		$recordings = $this->getRecordings ();
+		var_dump ($recordings);
 		
 	}
 	
@@ -83,6 +87,47 @@ class zoomIntegration extends frontControllerApplication
 	{
 		$users = $this->getData ('/users');
 		return $users;
+	}
+	
+	
+	# Function to get recordings
+	# https://marketplace.zoom.us/docs/api-reference/zoom-api/cloud-recording/getaccountcloudrecording
+	private function getRecordings ()
+	{
+		# Get the data
+		# Note that the API only shows max 1 month of requests
+		$data = $this->getData ('/accounts/me/recordings?page_size=300&from=1970-01-01');
+		
+		# Parse to simplified array
+		$recordings = array ();
+		foreach ($data['meetings'] as $meeting) {
+			
+			# Find the video file
+			# There are multiple recording types, so file type is queried for simplicity; see recording types at: https://devforum.zoom.us/t/complete-list-of-recording-type-returned-via-webhooks/6867
+			$videoFile = false;
+			foreach ($meeting['recording_files'] as $fileIndex => $recording) {
+				if ($recording['file_type'] == 'MP4') {
+					$videoFile = $fileIndex;
+					break;
+				}
+			}
+			
+			# Skip if not ready
+			if ($meeting['recording_files'][$fileIndex]['status'] != 'completed') {continue;}
+			
+			# Register the recording
+			$recordings[] = array (
+				'id'		=> $meeting['id'],
+				'title'		=> $meeting['topic'],
+				'date'		=> date ('Y-m-d', strtotime ($meeting['start_time'])),
+				'duration'	=> $meeting['duration'] . ' minutes',
+				'sizeMb'	=> (int) round (($meeting['recording_files'][$fileIndex]['file_size'] / (1024*1024))),
+				'videoUrl'	=> $meeting['recording_files'][$fileIndex]['download_url'],
+			);
+		}
+		
+		# Return the recordings list
+		return $recordings;
 	}
 	
 	
