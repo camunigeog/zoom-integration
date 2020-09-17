@@ -37,6 +37,12 @@ class zoomIntegration extends frontControllerApplication
 	{
 		# Define available actions
 		$actions = array (
+			'home' => array (
+				'description' => false,
+				'url' => '',
+				'tab' => 'Home',
+				'administrator' => true,
+			),
 		);
 		
 		# Return the actions
