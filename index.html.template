@@ -1,0 +1,12 @@
+<?php
+
+# Settings
+$settings = array (
+	'password'		=> 'database_password',
+);
+
+# Load and run the application with the above settings
+require_once ('zoomIntegration.php');
+new zoomIntegration ($settings);
+
+?>

@@ -1,0 +1,19 @@
+# Application Apache directives
+
+# Load using:
+#	# Zoom integration
+#	Include /path/to/zoom-integration/.httpd.conf.extract.txt
+#	Use MacroZoomIntegration /it/zoom "/path/to/site/:/path/to/zoom-integration/:/path/to/php/libraries/"
+
+
+<Macro MacroZoomIntegration $baseUrl $includePath>
+	
+	# Include path
+	<LocationMatch $baseUrl>
+		php_value include_path "$includePath"
+	</LocationMatch>
+	
+	# Front controller application support
+	Use MacroFrontControllerApplication "$baseUrl/" "Zoom integration"
+	
+</Macro>
