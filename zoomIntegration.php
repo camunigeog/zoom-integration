@@ -71,6 +71,18 @@ class zoomIntegration extends frontControllerApplication
 	# Home page
 	public function home ()
 	{
+		# Get users
+		$users = $this->getUsers ();
+		var_dump ($users);
+		
+	}
+	
+	
+	# Function to get users
+	private function getUsers ()
+	{
+		$users = $this->getData ('/users');
+		return $users;
 	}
 	
 	
