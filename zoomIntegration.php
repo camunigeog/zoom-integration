@@ -241,6 +241,11 @@ class zoomIntegration extends frontControllerApplication
 			$recordings[$id]['filenameResized'] = $filename;
 			$recordings[$id]['linkResized'] = "<a href=\"{$this->baseUrl}/data/{$filename}\">{$filename}</a>";
 			$recordings[$id]['errorResized'] = $error;
+			
+			# Show size if the recording exists
+			if (file_exists ($file)) {
+				$recordings[$id]['sizeResized'] = (int) round ((filesize ($file) / (1024*1024))) . 'MB';
+			}
 		}
 		
 		# Return the recordings list
