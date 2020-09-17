@@ -2,6 +2,12 @@
 
 # Class to create a template application
 require_once ('frontControllerApplication.php');
+
+# JWT PHP Library https://github.com/firebase/php-jwt
+require __DIR__ . '/vendor/autoload.php';
+use \Firebase\JWT\JWT;
+
+
 class zoomIntegration extends frontControllerApplication
 {
 	# Function to assign defaults additional to the general application defaults
@@ -17,6 +23,8 @@ class zoomIntegration extends frontControllerApplication
 			'username'				=> 'zoomintegration',
 			'database'				=> 'zoomintegration',
 			'table'					=> false,
+			'zoomJwtKey'			=> NULL,		// Obtain Zoom JWT API credentials from https://marketplace.zoom.us/develop/create
+			'zoomJwtSecret'			=> NULL,
 		);
 		
 		# Return the defaults
@@ -63,6 +71,43 @@ class zoomIntegration extends frontControllerApplication
 	# Home page
 	public function home ()
 	{
+	}
+	
+	
+	# Function to get data
+	private function getData ($apiCall)
+	{
+		# Generate the JWT
+		$jwt = $this->generateJWT ();
+		
+		# List users endpoint, e.g. GET https://api.zoom.us/v2/users
+		$url = 'https://api.zoom.us/v2' . $apiCall;
+		$ch = curl_init ($url);
+		curl_setopt ($ch, CURLOPT_RETURNTRANSFER, true);
+		
+		# Add token to the authorization header
+		curl_setopt ($ch, CURLOPT_HTTPHEADER, array (
+			'Authorization: Bearer ' . $jwt
+		));
+		
+		
+		# Get the data
+		$response = curl_exec ($ch);
+		$data = json_decode ($response, true);
+		
+		# Return the data
+		return $data;
+	}
+	
+	
+	# Function to generate JWT
+	private function generateJWT ()
+	{
+		$token = array (
+			'iss'	=> $this->settings['zoomJwtKey'],
+	        'exp'	=> time () + 60,	// The benefit of JWT is expiry tokens' we'll set this one to expire in 1 minute
+		);
+		return JWT::encode ($token, $this->settings['zoomJwtSecret']);
 	}
 }
 

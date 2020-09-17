@@ -3,6 +3,8 @@
 # Settings
 $settings = array (
 	'password'		=> 'database_password',
+	'zoomJwtKey'	=> 'zoom_api_key',			// Obtain Zoom JWT API credentials from https://marketplace.zoom.us/develop/create
+	'zoomJwtSecret'	=> 'zoom_api_secret',
 );
 
 # Load and run the application with the above settings
