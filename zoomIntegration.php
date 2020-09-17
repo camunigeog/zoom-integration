@@ -77,14 +77,40 @@ class zoomIntegration extends frontControllerApplication
 	# Home page
 	public function home ()
 	{
-		# Get users
-		//$users = $this->getUsers ();
-		//var_dump ($users);
+		# Start the HTML
+		$html = '';
 		
 		# Show recordings
-		$recordings = $this->getRecordings ();
-		var_dump ($recordings);
+		$html .= $this->recordings ();
 		
+		
+		# Show the HTML
+		echo $html;
+	}
+	
+	
+	# Function to get, cache, and resize recordings
+	private function recordings ()
+	{
+		# Start the HTML
+		$html = '';
+		
+		# Get the recordings
+		$recordings = $this->getRecordings ();
+		
+		# Obtain and cache the recordings
+		$recordings = $this->cacheRecordings ($recordings);
+		
+		# Render as table
+		$html .= "\n<h3>Recordings</h3>";
+		$html .= "\n<p>The following recordings are available.</p>";
+		$html .= "\n<p>Please note that Zoom limits the listing to the last month only.</p>";
+		$headings = array ('error' => 'Error?');
+		$html .= application::htmlTable ($recordings, $headings, 'lines', $keyAsFirstColumn = false, $uppercaseHeadings = true, $allowHtml = array ('link', 'error'));
+		
+		
+		# Return the HTML
+		return $html;
 	}
 	
 	
@@ -103,6 +129,7 @@ class zoomIntegration extends frontControllerApplication
 		# Get the data
 		# Note that the API only shows max 1 month of requests
 		$data = $this->getData ('/accounts/me/recordings?page_size=300&from=1970-01-01');
+		//var_dump ($data);
 		
 		# Parse to simplified array
 		$recordings = array ();
@@ -121,15 +148,56 @@ class zoomIntegration extends frontControllerApplication
 			# Skip if not ready
 			if ($meeting['recording_files'][$fileIndex]['status'] != 'completed') {continue;}
 			
+			# Obtain the ID
+			$id = $meeting['id'];
+			
 			# Register the recording
-			$recordings[] = array (
-				'id'		=> $meeting['id'],
+			$recordings[$id] = array (
+				//'id'		=> $id,
 				'title'		=> $meeting['topic'],
 				'date'		=> date ('Y-m-d', strtotime ($meeting['start_time'])),
 				'duration'	=> $meeting['duration'] . ' minutes',
-				'sizeMb'	=> (int) round (($meeting['recording_files'][$fileIndex]['file_size'] / (1024*1024))),
-				'videoUrl'	=> $meeting['recording_files'][$fileIndex]['download_url'],
+				'size'		=> (int) round (($meeting['recording_files'][$fileIndex]['file_size'] / (1024*1024))) . 'MB',
+				'videoUrl'	=> $meeting['recording_files'][$fileIndex]['download_url'] . '?access_token=' . $this->jwt,
 			);
+		}
+		
+		# Return the recordings list
+		return $recordings;
+	}
+	
+	
+	# Function to cache recordings
+	private function cacheRecordings ($recordings)
+	{
+		# Ensure the data directory is writeable
+		if (!is_writable ($this->dataDirectory)) {
+			echo "\n<p class=\"warning\">Error: the data directory" . ($this->userIsAdministrator ? " at <tt>{$this->dataDirectory}</tt>" : '') . " is not writeable. The administrator needs to fix this.</p>";
+		}
+		
+		# Loop through each recording
+		foreach ($recordings as $id => $recording) {
+			
+			# Determine the file location
+			$filename = $id . '.mp4';
+			$file = $this->dataDirectory . $filename;
+			
+			# If the file does not exist, download it in the background
+			$error = '-';
+			if (!file_exists ($file)) {
+				$command = "wget -q -O {$file} '{$recording['videoUrl']}' 2>&1 &";	// Backgrounded, using & ; this will start creating the file straight away so file_exists will not trigger again
+				$output = shell_exec ($command);
+				if ($output) {
+					$error = '<span class="warning">' . trim ($output) . '</span>';		// Change file to error
+				}
+			}
+			unset ($recordings[$id]['videoUrl']);
+			
+			# Register the result
+			$recordings[$id]['filename'] = $filename;
+			$recordings[$id]['link'] = "<a href=\"{$this->baseUrl}/data/{$filename}\">{$filename}</a>";
+			//$recordings[$id]['file'] = $file;
+			$recordings[$id]['error'] = $error;
 		}
 		
 		# Return the recordings list
@@ -141,7 +209,7 @@ class zoomIntegration extends frontControllerApplication
 	private function getData ($apiCall)
 	{
 		# Generate the JWT
-		$jwt = $this->generateJWT ();
+		$this->jwt = $this->generateJWT ();
 		
 		# List users endpoint, e.g. GET https://api.zoom.us/v2/users
 		$url = 'https://api.zoom.us/v2' . $apiCall;
@@ -150,7 +218,7 @@ class zoomIntegration extends frontControllerApplication
 		
 		# Add token to the authorization header
 		curl_setopt ($ch, CURLOPT_HTTPHEADER, array (
-			'Authorization: Bearer ' . $jwt
+			'Authorization: Bearer ' . $this->jwt
 		));
 		
 		
